@@ -17,9 +17,9 @@ jobs:
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
 
-            docker pull dockerhubusername/myapp:latest
+            docker pull adityasinghrana76/tech-portfolio:latest
 
-            docker stop myapp || true
-            docker rm myapp || true
+            docker stop Tech-portfolio || true
+            docker rm Tech-portfolio || true
 
-            docker run -d -p 80:80 --name myapp adityasinghrana76/Tech-portfolio:latest
+            docker run -d -p 80:80 --name Tech-portfolio adityasinghrana76/tech-portfolio:latest
