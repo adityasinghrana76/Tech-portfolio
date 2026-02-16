@@ -1,4 +1,4 @@
-name: CD Deploy to EC2
+name: CD Deploy React Portfolio to EC2
 
 on:
   workflow_dispatch:
@@ -9,17 +9,18 @@ jobs:
 
     steps:
       - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
+          username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
 
-            docker pull adityasinghrana76/tech-portfolio:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/tech-portfolio:latest
 
-            docker stop Tech-portfolio || true
-            docker rm Tech-portfolio || true
+            docker stop tech-portfolio || true
+            docker rm tech-portfolio || true
 
-            docker run -d -p 80:80 --name Tech-portfolio adityasinghrana76/tech-portfolio:latest
+            docker run -d -p 80:80 --name tech-portfolio ${{ secrets.DOCKER_USERNAME }}/tech-portfolio:latest
