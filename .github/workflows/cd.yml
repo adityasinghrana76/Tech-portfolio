@@ -1,0 +1,25 @@
+name: CD Deploy to EC2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+            docker pull dockerhubusername/myapp:latest
+
+            docker stop myapp || true
+            docker rm myapp || true
+
+            docker run -d -p 80:80 --name myapp dockerhubusername/myapp:latest
