@@ -22,4 +22,4 @@ jobs:
             docker stop myapp || true
             docker rm myapp || true
 
-            docker run -d -p 80:80 --name myapp dockerhubusername/myapp:latest
+            docker run -d -p 80:80 --name myapp adityasinghrana76/Tech-portfolio:latest
