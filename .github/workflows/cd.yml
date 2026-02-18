@@ -1,26 +1,91 @@
-name: CD Deploy React Portfolio to EC2
+name: tech-portfolio-ci
 
 on:
+  push:
+    branches:
+      - main
+      - develop-*
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tag: ${{ steps.vars.outputs.tag }}
+
     steps:
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 🔹 Read version.txt
+      - name: Read version file
+        id: vars
+        run: |
+          IMAGE_NAME=$(grep '^image_name=' version.txt | cut -d '=' -f2 | tr -d ' \r')
+          VERSION=$(grep '^version=' version.txt | cut -d '=' -f2 | tr -d ' \r')
+          BUILD=${{ github.run_number }}
+          FINAL_TAG=$VERSION.$BUILD
+
+          echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "tag=$FINAL_TAG" >> $GITHUB_OUTPUT
+
+      # 🔹 Node
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script: |
-            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          node-version: 18
 
-            docker pull ${{ secrets.DOCKER_USERNAME }}/tech-portfolio:latest
+      - run: npm install
+      - run: npm run build
 
-            docker stop tech-portfolio || true
-            docker rm tech-portfolio || true
+      # 🔹 Docker setup
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
 
-            docker run -d -p 80:80 --name tech-portfolio ${{ secrets.DOCKER_USERNAME }}/tech-portfolio:latest
+      # 🔴 Login only on main
+      - name: Docker login
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 🔹 Build image (all branches)
+      - name: Build Docker image
+        run: |
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ steps.vars.outputs.image }}
+          TAG=${{ steps.vars.outputs.tag }}
+
+          docker buildx build . \
+            --platform linux/amd64 \
+            --tag $IMAGE:$TAG \
+            --tag $IMAGE:latest \
+            --load
+
+      # 🔴 Push only main
+      - name: Push Docker image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ steps.vars.outputs.image }}
+          TAG=${{ steps.vars.outputs.tag }}
+
+          docker push $IMAGE:$TAG
+          docker push $IMAGE:latest
+
+      # 🔥 AUTO TRIGGER CD AFTER SUCCESS
+      - name: Trigger CD workflow
+        if: github.ref == 'refs/heads/main'
+        run: |
+          curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/cd.yml/dispatches \
+          -d '{
+            "ref": "main",
+            "inputs": {
+              "image": "${{ steps.vars.outputs.image }}",
+              "tag": "${{ steps.vars.outputs.tag }}"
+            }
+          }'
